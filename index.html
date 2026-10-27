@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tranqui · Escudo antiestafa</title>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <style>
 :root{color-scheme:light;--bg:#FAFBF9;--card:#fff;--ink:#12261D;--mut:#5C6B63;--line:#DDE7E0;--g:#176B4D;--gl:#E6F2EB;--red:#C23B3B;--redl:#FBEFEF;--nav:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}
@@ -84,11 +86,12 @@ details{border-top:1.5px solid var(--line);padding:10px 0}summary{cursor:pointer
     <div id="pf">
       <p class="mut">Vinculalo para activar el escudo. Te mandamos un código por SMS.</p>
       <label for="ph">Número de celular</label>
-      <input id="ph" type="tel" inputmode="tel" placeholder="Ej: 11 2345 6789" autocomplete="tel">
+      <p class="mut" style="font-size:15px;margin:0">Con código de área, sin 0 ni 15. Ej: 221 555 1234</p>
+      <input id="ph" type="tel" inputmode="tel" placeholder="Ej: 221 555 1234" autocomplete="tel">
       <button class="btn" id="sc">Enviarme el código</button>
       <div id="cb" hidden style="margin-top:18px">
-        <label for="cd">Código de 4 números</label>
-        <input id="cd" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="one-time-code">
+        <label for="cd">Código de 6 números</label>
+        <input id="cd" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code">
         <button class="btn" id="vf">Confirmar número</button>
         <p class="mut" style="font-size:15px;margin:10px 0 0">¿No llegó? <a href="#" id="rs" style="color:var(--g)">Reenviar código</a></p>
       </div>
@@ -163,12 +166,21 @@ function paint(){var on=S.on;$("sw").setAttribute("aria-checked",on);$("sh").cla
  $("pf").hidden=!!S.phone;$("pd").hidden=!S.phone;$("ps").textContent=S.phone;$("pl").textContent=S.plan;famPaint()}
 $("sw").onclick=function(){if(!S.phone){toast("Primero vinculá tu número");$("ph").scrollIntoView({block:"center"});$("ph").focus();return}S.on=!S.on;save();paint()};
 
-function sendCode(){var v=$("ph").value.replace(/\D/g,"");if(v.length<8){toast("Revisá el número: parece corto");return}
- CODE=String(Math.floor(1000+Math.random()*9000));$("cb").hidden=false;$("cd").value="";$("cd").focus();
- $("smsT").textContent="Tu código de Tranqui es "+CODE+". No lo compartas.";var s=$("sms");s.classList.add("show");setTimeout(function(){s.classList.remove("show")},7000)}
+var FB={apiKey:"AIzaSyBgwD8bZKXou1UexWqNvKF7pkBSmBHPPqo",authDomain:"nocaigas-fbe96.firebaseapp.com",projectId:"nocaigas-fbe96",storageBucket:"nocaigas-fbe96.firebasestorage.app",messagingSenderId:"415989275586",appId:"1:415989275586:web:fe3c441e1b09c54e93545b"};
+var auth=null,conf=null,cap=null,busy=false;
+try{firebase.initializeApp(FB);auth=firebase.auth();auth.languageCode="es"}catch(e){}
+function e164(raw){var t=raw.trim();if(t.charAt(0)==="+")return "+"+t.replace(/\D/g,"");var d=raw.replace(/\D/g,"").replace(/^0+/,"");if(d.indexOf("54")===0)d=d.slice(2);if(d.charAt(0)==="9")d=d.slice(1);return "+549"+d}
+function errMsg(e){var c=(e&&e.code)||"";if(c==="auth/invalid-phone-number")return "Número inválido. Revisalo";if(c==="auth/too-many-requests")return "Demasiados intentos. Probá más tarde";if(c==="auth/quota-exceeded")return "Se llegó al límite diario de SMS";if(c==="auth/unauthorized-domain")return "Dominio no autorizado en Firebase";return "No se pudo enviar el SMS ("+c+")"}
+function resetCap(){try{if(cap)cap.clear()}catch(x){}cap=null;busy=false;$("sc").disabled=false}
+function sendCode(){var n=e164($("ph").value);if(n.replace(/\D/g,"").length<12){toast("Revisá el número: con código de área, sin 0 ni 15");return}
+ if(!auth){toast("No se pudo conectar. Revisá tu internet");return}
+ if(busy)return;busy=true;$("sc").disabled=true;
+ try{cap=new firebase.auth.RecaptchaVerifier("sc",{size:"invisible"})}catch(e){resetCap();toast("Error de seguridad. Recargá la página");return}
+ auth.signInWithPhoneNumber(n,cap).then(function(r){conf=r;$("cb").hidden=false;$("cd").value="";$("cd").focus();toast("Te mandamos un SMS");resetCap()}).catch(function(e){toast(errMsg(e));resetCap()})}
 $("sc").onclick=sendCode;$("rs").onclick=function(e){e.preventDefault();sendCode()};
-$("vf").onclick=function(){if(CODE&&$("cd").value===CODE){S.phone=$("ph").value.trim();S.on=true;CODE="";save();paint();toast("Número vinculado. Escudo activado")}else toast("Código incorrecto. Probá de nuevo")};
-$("ul").onclick=function(){S.phone="";S.on=false;save();$("cb").hidden=true;paint()};
+$("vf").onclick=function(){var c=$("cd").value.trim();if(!conf){toast("Primero pedí el código");return}if(c.length<6){toast("Escribí los 6 números del código");return}
+ conf.confirm(c).then(function(res){S.phone=res.user.phoneNumber;S.on=true;save();paint();toast("Número vinculado. Escudo activado")}).catch(function(){toast("Código incorrecto. Probá de nuevo")})};
+$("ul").onclick=function(){try{if(auth)auth.signOut()}catch(e){}S.phone="";S.on=false;conf=null;save();$("cb").hidden=true;paint()};
 
 function famPaint(){var g=$("fam");if(S.plan==="Gratis"){g.innerHTML='<p class="mut" style="margin:0">El aviso a un familiar está en Tranqui+ y Familia.</p>'}
  else{g.innerHTML='<label for="fn">Familiar de confianza</label><input id="fn" type="tel" value="'+(S.fam||"")+'" placeholder="Número de tu familiar"><button class="btn ghost" id="fs">Guardar familiar</button>';$("fs").onclick=function(){S.fam=$("fn").value.trim();save();toast("Familiar guardado")}}}
