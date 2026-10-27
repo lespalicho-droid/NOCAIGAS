@@ -82,21 +82,23 @@ details{border-top:1.5px solid var(--line);padding:10px 0}summary{cursor:pointer
   <button class="ex" id="exBtn"><i><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 17V11a6 6 0 1 1 12 0v6l2 2H4l2-2Zm4 4h4"/></svg></i><div><b>Ver ejemplo de alerta</b><span>Simulá cómo te avisaremos ante un posible fraude</span></div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.500"><path d="m9 5 7 7-7 7"/></svg></button>
 
   <div class="card">
-    <h2>Tu número de teléfono</h2>
-    <div id="pf">
-      <p class="mut">Vinculalo para activar el escudo. Te mandamos un código por SMS.</p>
-      <label for="ph">Número de celular</label>
-      <p class="mut" style="font-size:15px;margin:0">Con código de área, sin 0 ni 15. Ej: 221 555 1234</p>
-      <input id="ph" type="tel" inputmode="tel" placeholder="Ej: 221 555 1234" autocomplete="tel">
-      <button class="btn" id="sc">Enviarme el código</button>
-      <div id="cb" hidden style="margin-top:18px">
-        <label for="cd">Código de 6 números</label>
-        <input id="cd" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code">
-        <button class="btn" id="vf">Confirmar número</button>
-        <p class="mut" style="font-size:15px;margin:10px 0 0">¿No llegó? <a href="#" id="rs" style="color:var(--g)">Reenviar código</a></p>
-      </div>
+    <h2>Tu cuenta</h2>
+    <div id="gIn">
+      <p class="mut">Entrá con tu cuenta de Google para proteger tu número y guardar tus denuncias.</p>
+      <button class="btn" id="gBtn">Continuar con Google</button>
     </div>
-    <div id="pd" hidden><p><span class="pill">✔ Vinculado</span> <b id="ps"></b></p><button class="btn ghost" id="ul">Desvincular</button></div>
+    <div id="gOut" hidden>
+      <p><span class="pill">✔ Sesión iniciada</span></p>
+      <p style="margin:0"><b id="gName"></b><br><span class="mut" id="gMail"></span></p>
+      <div style="margin-top:16px">
+        <label for="ph">Tu número de celular</label>
+        <p class="mut" style="font-size:15px;margin:0">Con código de área, sin 0 ni 15. Ej: 221 555 1234</p>
+        <input id="ph" type="tel" inputmode="tel" placeholder="Ej: 221 555 1234" autocomplete="tel">
+        <button class="btn" id="sp">Guardar número</button>
+        <p class="mut" id="pn" style="font-size:15px;margin:10px 0 0"></p>
+      </div>
+      <button class="btn ghost" id="so" style="margin-top:14px">Cerrar sesión</button>
+    </div>
   </div>
 
   <div class="card">
@@ -163,24 +165,24 @@ document.querySelectorAll("nav button").forEach(function(b){b.onclick=function()
 function paint(){var on=S.on;$("sw").setAttribute("aria-checked",on);$("sh").classList.toggle("offs",!on);$("tag").classList.toggle("offs",!on);
  $("tag").textContent=on?"ESCUDO ACTIVADO":"ESCUDO APAGADO";$("st").textContent=on?"Estás protegido":"Estás sin protección";
  $("sd").textContent=on?"Te alertaremos si detectamos algo fuera de lo común.":"Activalo para que te avisemos ante llamadas y mensajes sospechosos.";
- $("pf").hidden=!!S.phone;$("pd").hidden=!S.phone;$("ps").textContent=S.phone;$("pl").textContent=S.plan;famPaint()}
-$("sw").onclick=function(){if(!S.phone){toast("Primero vinculá tu número");$("ph").scrollIntoView({block:"center"});$("ph").focus();return}S.on=!S.on;save();paint()};
+ accPaint();$("pl").textContent=S.plan;famPaint()}
+$("sw").onclick=function(){if(!S.user){toast("Primero entrá con Google");$("gBtn").scrollIntoView({block:"center"});return}if(!S.phone){toast("Guardá tu número para activar el escudo");$("ph").scrollIntoView({block:"center"});$("ph").focus();return}S.on=!S.on;save();paint()};
 
 var FB={apiKey:"AIzaSyBgwD8bZKXou1UexWqNvKF7pkBSmBHPPqo",authDomain:"nocaigas-fbe96.firebaseapp.com",projectId:"nocaigas-fbe96",storageBucket:"nocaigas-fbe96.firebasestorage.app",messagingSenderId:"415989275586",appId:"1:415989275586:web:fe3c441e1b09c54e93545b"};
-var auth=null,conf=null,cap=null,busy=false;
+var auth=null;
 try{firebase.initializeApp(FB);auth=firebase.auth();auth.languageCode="es"}catch(e){}
-function e164(raw){var t=raw.trim();if(t.charAt(0)==="+")return "+"+t.replace(/\D/g,"");var d=raw.replace(/\D/g,"").replace(/^0+/,"");if(d.indexOf("54")===0)d=d.slice(2);if(d.charAt(0)==="9")d=d.slice(1);return "+549"+d}
-function errMsg(e){var c=(e&&e.code)||"";if(c==="auth/invalid-phone-number")return "Número inválido. Revisalo";if(c==="auth/too-many-requests")return "Demasiados intentos. Probá más tarde";if(c==="auth/quota-exceeded")return "Se llegó al límite diario de SMS";if(c==="auth/unauthorized-domain")return "Dominio no autorizado en Firebase";return "No se pudo enviar el SMS ("+c+")"}
-function resetCap(){try{if(cap)cap.clear()}catch(x){}cap=null;busy=false;$("sc").disabled=false}
-function sendCode(){var n=e164($("ph").value);if(n.replace(/\D/g,"").length<12){toast("Revisá el número: con código de área, sin 0 ni 15");return}
- if(!auth){toast("No se pudo conectar. Revisá tu internet");return}
- if(busy)return;busy=true;$("sc").disabled=true;
- try{cap=new firebase.auth.RecaptchaVerifier("sc",{size:"invisible"})}catch(e){resetCap();toast("Error de seguridad. Recargá la página");return}
- auth.signInWithPhoneNumber(n,cap).then(function(r){conf=r;$("cb").hidden=false;$("cd").value="";$("cd").focus();toast("Te mandamos un SMS");resetCap()}).catch(function(e){toast(errMsg(e));resetCap()})}
-$("sc").onclick=sendCode;$("rs").onclick=function(e){e.preventDefault();sendCode()};
-$("vf").onclick=function(){var c=$("cd").value.trim();if(!conf){toast("Primero pedí el código");return}if(c.length<6){toast("Escribí los 6 números del código");return}
- conf.confirm(c).then(function(res){S.phone=res.user.phoneNumber;S.on=true;save();paint();toast("Número vinculado. Escudo activado")}).catch(function(){toast("Código incorrecto. Probá de nuevo")})};
-$("ul").onclick=function(){try{if(auth)auth.signOut()}catch(e){}S.phone="";S.on=false;conf=null;save();$("cb").hidden=true;paint()};
+function authMsg(e){var c=(e&&e.code)||"";if(c==="auth/popup-closed-by-user"||c==="auth/cancelled-popup-request")return "Cerraste la ventana de Google";if(c==="auth/unauthorized-domain")return "Dominio no autorizado en Firebase";if(c==="auth/operation-not-allowed")return "Google no está habilitado en Firebase";return "No se pudo entrar ("+c+")"}
+$("gBtn").onclick=function(){if(!auth){toast("No se pudo conectar. Revisá tu internet");return}
+ var pr=new firebase.auth.GoogleAuthProvider();
+ auth.signInWithPopup(pr).then(function(){toast("Sesión iniciada")}).catch(function(e){if(e&&e.code==="auth/popup-blocked"){auth.signInWithRedirect(pr)}else toast(authMsg(e))})};
+if(auth){auth.getRedirectResult().catch(function(){});
+ auth.onAuthStateChanged(function(u){if(u){S.user={name:u.displayName||"Usuario",email:u.email||""}}else{S.user=null;S.on=false}save();paint()})}
+$("so").onclick=function(){try{if(auth)auth.signOut()}catch(e){}S.user=null;S.on=false;save();paint();toast("Sesión cerrada")};
+$("sp").onclick=function(){var d=$("ph").value.replace(/\D/g,"").replace(/^0+/,"");if(d.indexOf("54")===0)d=d.slice(2);if(d.charAt(0)==="9")d=d.slice(1);
+ if(d.length!==10){toast("Revisá el número: 10 dígitos con código de área, sin 0 ni 15");return}
+ S.phone="+549"+d;S.on=true;save();paint();toast("Número guardado. Escudo activado")};
+function accPaint(){var u=S.user;$("gIn").hidden=!!u;$("gOut").hidden=!u;if(u){$("gName").textContent=u.name;$("gMail").textContent=u.email;
+ $("pn").textContent=S.phone?"Número guardado: "+S.phone+" (no verificado por SMS)":"Todavía no guardaste tu número.";if(S.phone&&!$("ph").value)$("ph").value=S.phone.replace("+549","")}}
 
 function famPaint(){var g=$("fam");if(S.plan==="Gratis"){g.innerHTML='<p class="mut" style="margin:0">El aviso a un familiar está en Tranqui+ y Familia.</p>'}
  else{g.innerHTML='<label for="fn">Familiar de confianza</label><input id="fn" type="tel" value="'+(S.fam||"")+'" placeholder="Número de tu familiar"><button class="btn ghost" id="fs">Guardar familiar</button>';$("fs").onclick=function(){S.fam=$("fn").value.trim();save();toast("Familiar guardado")}}}
